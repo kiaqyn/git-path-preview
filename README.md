@@ -1,5 +1,7 @@
 # Git Path Preview
 
+[![Tests](https://github.com/kiaqyn/git-path-preview/actions/workflows/test.yml/badge.svg)](https://github.com/kiaqyn/git-path-preview/actions/workflows/test.yml)
+
 [中文说明](README.zh-CN.md)
 
 Preview path lengths and common Windows filename incompatibilities in a Git commit for a **specific Windows checkout destination**. This is an experimental, read-only tool, not a guarantee that a checkout will succeed.

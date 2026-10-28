@@ -1,5 +1,18 @@
 # Validation and known limits
 
+## Published validation (2026-10-28)
+
+The repository is public at [kiaqyn/git-path-preview](https://github.com/kiaqyn/git-path-preview).
+[GitHub Actions run 40702340991](https://github.com/kiaqyn/git-path-preview/actions/runs/40702340991)
+passed on `ubuntu-latest` and `windows-latest` with Node 20 and 24, for commit
+`711b245e5254d2ff39be0c1033dad2e1bd8b0c98`. Windows-specific filesystem and
+checkout tests are skipped on Linux. An unauthenticated clone was compared
+byte-for-byte with the selected publication files.
+
+The entries below preserve earlier local validation history. Statements below
+that online CI or Linux were not yet tested describe the state before this
+published run. No adoption, customer, or revenue claims follow from these checks.
+
 ## Real-world checkout report
 
 The public [geist-font issue #241](https://github.com/vercel/geist-font/issues/241) reports a Windows Git checkout error for `sources/||`.
