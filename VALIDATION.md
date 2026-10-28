@@ -1,0 +1,49 @@
+# Validation and known limits
+
+## Real-world checkout report
+
+The public [geist-font issue #241](https://github.com/vercel/geist-font/issues/241) reports a Windows Git checkout error for `sources/||`.
+
+On 2026-10-27, this tool scanned the public repository's default branch in remote mode. It examined 5,107 entries and reported `invalid_character` for that path, with exit code 1. The inspected tree was `93aa04d1f462819ad89f2a200d049cf68d6bc221`, which matched the tree of [commit b5d164a0c066c2c9bfcd5ab65dd8244551f0ac06](https://github.com/vercel/geist-font/commit/b5d164a0c066c2c9bfcd5ab65dd8244551f0ac06) during the check.
+
+In a separate, isolated clone at that same commit on Windows, `git -c core.protectNTFS=true checkout HEAD -- 'sources/||'` returned exit code 1 and `error: invalid path 'sources/||'`. The test used Git 2.55.0.windows.5 and Node 24.19.0. The error concerns this particular path and tree; it does not establish that every finding is an actual checkout failure or that every failure is detected. The remote branch may change after this date.
+
+## A real destination-length example
+
+The reporter of [SWE-agent issue #1518](https://github.com/SWE-agent/SWE-agent/issues/1518) described checkout failures under a deep Windows destination at [commit `3ea751c087f32b16e039a2233dd6eefecef325d5`](https://github.com/SWE-agent/SWE-agent/commit/3ea751c087f32b16e039a2233dd6eefecef325d5), and reported that enabling `core.longpaths` worked around their failure. This report is independent of this project and does not demonstrate demand for this tool.
+
+On 2026-10-28, a blob-filtered fetch of that exact commit produced tree `6cb89148f6a6cc5c4da670a5cec7707f50bb3591` with 409 tracked entries. Scanning two isolated local destination paths produced zero length warnings for the 64-unit root (longest estimated path 245), and 14 warnings for the 134-unit root (longest estimated path 315). With Git for Windows 2.55.0.windows.5 and `core.longpaths=false`, we fetched the single reported trajectory file's actual blob and checked out that file at each location: the shorter checkout succeeded; the deeper checkout failed with `Filename too long`. In the same deep directory, a second checkout with `core.longpaths=true` succeeded; its contents matched the Git blob after normalizing CRLF line endings. The scanner still warns at its configured threshold because it does not inspect Git's long-path configuration. These are controlled single-file tests, not a full checkout or a claim about every Windows configuration.
+
+## Local checks
+
+On 2026-10-28, a Windows filesystem fixture showed that a normal destination directory could be created while a component containing `|` or `:` failed with `EINVAL`; the old scanner reported a clean result for the same target strings. The updated tool rejects invalid characters in normalized directory components after a drive or UNC share, before running Git; 24 tests passed on this machine in both Node 24 / Git 2.55 and Node 20.0.0 / MinGit 2.45.0.windows.1 environments. The UNC server/share itself and the full set of filesystem and application naming rules are not validated. In a separate probe, Node was able to create directories with device-like names and trailing dots or spaces, illustrating why these destination components were not universally rejected from this observation alone.
+
+On the same machine, invoking npm's generated `.cmd` wrapper from PowerShell with `&` or `|` in an argument caused the command interpreter to split it. The recommended PowerShell installation instructions now invoke the installed `.mjs` with `node` directly. In an offline-installed fixture, this direct command preserved `C:\repo&copy` exactly and rejected `C:\bad|name` with input-error exit code 2. The generated `.cmd` wrapper itself has not been modified.
+
+On 2026-10-28, an isolated `url.*.insteadOf` fixture demonstrated that Git could rewrite an entered HTTPS address to a local `file:` URL; the previous remote mode then scanned that different repository. The tool now calls `git ls-remote --get-url` before cloning and refuses any rewritten URL. A positive control verifies Git performs the rewrite; the test verifies refusal before a temporary clone is created. A public geist-font HTTPS scan without a rewrite still identified the known `sources/||` issue. This preflight cannot prevent a configuration race, HTTP redirects or configured proxies.
+
+The existing failed-remote cleanup test had a Windows-specific flaw: Node's `os.devNull` value was not accepted as a Git global-config path, so the test could pass without attempting a network connection. It now uses a real empty temporary config and checks for a loopback connection failure before asserting cleanup. After the fix, 22 tests passed on this Windows machine with Node 24 / Git 2.55 and Node 20.0.0 / MinGit 2.45.0.windows.1; Linux and GitHub Actions remain unverified.
+
+On 2026-10-28, isolated Windows Git 2.55 checks showed that `CONIN$`, `CONOUT$` and `LPT0`, including selected extensions, were rejected with `core.protectNTFS=true` while the old scanner returned no warning. It now emits `git_ntfs_device_name`; the tests include `COM0` and `LPT01` as accepted controls. With protection disabled, the same machine checked out `LPT0.txt` and `conin$.txt` successfully, while bare `CONIN$` and `CONOUT$` still failed. In one separate test `LPT².txt` checked out despite the existing reserved-device warning: warnings are conservative and do not prove failure. Behavior depends on Git, filesystem and configuration. The revised 21-test suite passed with Node 24/Git 2.55 and Node 20.0.0/MinGit 2.45.0.windows.1 on this machine.
+
+On 2026-10-28, a controlled Windows fixture exposed a missed warning: with `core.protectNTFS=true`, Git rejected files named `.git`, `git~1` and `GIT~1`, while the previous scanner returned a clean report. The revised scanner flags these exact components and preserves clean results for `git~2` and `.gitmodules`; this does not exhaust the possible aliases. The revised 19-test suite passed on this machine with Node 24 / Git 2.55 and with Node 20.0.0 / MinGit 2.45.0.windows.1. The checkout checks use synthetic trees, not a real user's repository.
+
+The updated local archive was also installed offline in an isolated directory, and its installed `.cmd` reported `git_metadata_name` with exit code 1 for a synthetic `git~1` tree. The first packaging probe accidentally included a carriage return in the filename because a PowerShell pipe supplied CRLF; after generating the exact tree bytes, the check passed.
+
+On 2026-10-28, all 17 tests passed on Windows using Node.js 20.0.0 with Git 2.55.0.windows.5. The suite also passed in full with Node.js 20.0.0 and Git for Windows MinGit 2.45.0.windows.1, with its `cmd` directory first on PATH. Both binaries were downloaded from official release sources and checked against their published SHA-256 digests. This validates the minimum versions for these tested flows on this machine; it does not verify every Windows environment, Linux, or GitHub Actions.
+
+On Windows, the local archive was installed offline in a directory containing a space, then its generated `.cmd` was run against the existing isolated geist-font fixture with a space in the target path. It returned warning exit code 1 and reported `sources/||` as an invalid filename. This validates that local installation flow, not a registry or GitHub release.
+
+A two-repository fixture confirms that inherited `GIT_DIR` makes ordinary Git inspect the other repository despite `-C`. The tool stops with an error instead of emitting a report when that override or several related repository, object and namespace overrides are set. This is a conservative restriction; repositories that require those overrides cannot currently be scanned with them enabled.
+
+Run `node --test test.mjs`. The suite covers length accounting, Unicode, reserved names, case-only collisions, invalid characters, text output, a real bare Git tree, and Git checkout behavior for reserved names on Windows. The GitHub Actions configuration has not been run on GitHub yet.
+
+A controlled Git replacement-ref test covers both a replacement introducing an invalid path and a replacement hiding one. The scanner deliberately ignores replacements and verifies that its reported tree ID corresponds to the original tree's names. Local checkout with replacement refs enabled may differ; this is documented in the README.
+
+A Git tree fixture tests filenames beginning with U+FEFF: it is preserved as part of the name rather than removed as a text-stream marker. On Windows the same fixture checks that `\uFEFFNUL.txt` can be checked out and must not be mistaken for the reserved `NUL.txt` device name. A separate raw-byte fixture checks that invalid UTF-8 returns an error instead of a misleading JSON report.
+
+The Windows-only suite also constructs one commit and clones it without checkout into two temporary destinations. With `core.longpaths=false`, the checkout succeeds in the short destination and fails with `Filename too long` in the deep destination; the tool reports a length warning only for the deep destination. This is a controlled example under one Git configuration, not a universal path-length boundary.
+
+The suite creates a local partial clone with a missing tree object and a working local promisor remote. When the tool scans it, the command returns an error, the tree remains missing, and no on-demand fetch occurs; an ordinary Git command can then fetch the object as a positive control. A separate loopback-only test checks that a failed remote clone leaves no temporary bare repository behind. These tests do not cover forced process termination, so cleanup after a crash or kill is not guaranteed.
+
+The tool has no customer, adoption or comparative-performance data. Its output is an estimate, not a checkout guarantee; see the README for limitations.

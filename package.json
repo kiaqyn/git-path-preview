@@ -1,0 +1,23 @@
+{
+  "name": "git-path-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Preview Windows checkout path risks for a Git tree",
+  "bin": {
+    "git-path-preview": "./preview.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "preview.mjs",
+    "README.md",
+    "README.zh-CN.md",
+    "VALIDATION.md",
+    "NOTICE.md"
+  ],
+  "scripts": {
+    "test": "node --test test.mjs"
+  }
+}
